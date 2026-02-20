@@ -880,10 +880,14 @@ export default function App() {
 
   // Check auth state on mount + listen for changes
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
-      setSession(s);
-      setAuthChecked(true);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session: s } }) => {
+        setSession(s);
+      })
+      .catch(() => {
+        // Supabase unreachable — continue without auth
+      })
+      .finally(() => setAuthChecked(true));
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
       setSession(s);
