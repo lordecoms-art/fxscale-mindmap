@@ -105,7 +105,7 @@ function Modal({ open, onClose, title, children }) {
 // ─── Mindmap View ───────────────────────────────────────────────────────────
 function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditTask, onAddProject, onEditProject, onDeleteProject }) {
   const containerRef = useRef(null);
-  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
+  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 0.5 });
   const [dragging, setDragging] = useState(null);
   const [nodePositions, setNodePositions] = useState({});
   const [isPanning, setIsPanning] = useState(false);
@@ -120,7 +120,7 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
 
   const centerX = 0;
   const centerY = 0;
-  const projectRadius = 260;
+  const projectRadius = 400;
 
   const getProjectPos = useCallback((index, total) => {
     const angle = (2 * Math.PI * index) / total - Math.PI / 2;
@@ -135,7 +135,7 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
     const spread = Math.PI / (Math.max(totalTasks, 2) + 1);
     const startAngle = baseAngle - (spread * (totalTasks - 1)) / 2;
     const angle = startAngle + spread * taskIndex;
-    const taskRadius = 160;
+    const taskRadius = Math.max(250, totalTasks * 80);
     return {
       x: projPos.x + taskRadius * Math.cos(angle),
       y: projPos.y + taskRadius * Math.sin(angle),
@@ -160,6 +160,30 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
     if (el) el.addEventListener('wheel', handleWheel, { passive: false });
     return () => { if (el) el.removeEventListener('wheel', handleWheel); };
   }, [handleWheel]);
+
+  // Auto-fit zoom on mount
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const container = containerRef.current;
+      if (!container || projects.length === 0) return;
+      let minX = -65, maxX = 65, minY = -65, maxY = 65;
+      projects.forEach((proj, pi) => {
+        const pp = getProjectPos(pi, projects.length);
+        minX = Math.min(minX, pp.x - 120); maxX = Math.max(maxX, pp.x + 120);
+        minY = Math.min(minY, pp.y - 45); maxY = Math.max(maxY, pp.y + 45);
+        proj.tasks.forEach((_, ti) => {
+          const tp = getTaskPos(pp, ti, proj.tasks.length, pi, projects.length);
+          minX = Math.min(minX, tp.x - 120); maxX = Math.max(maxX, tp.x + 120);
+          minY = Math.min(minY, tp.y - 40); maxY = Math.max(maxY, tp.y + 40);
+        });
+      });
+      const cw = maxX - minX + 60, ch = maxY - minY + 60;
+      const s = Math.min(container.clientWidth / cw, container.clientHeight / ch, 1);
+      setTransform({ x: 0, y: 0, scale: Math.max(s, 0.2) });
+    });
+    return () => cancelAnimationFrame(frame);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleMouseDown = useCallback((e) => {
     if (e.target === containerRef.current || e.target.tagName === 'svg') {
@@ -206,13 +230,13 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
   allNodes.push(
     <g key="central" style={{ cursor: 'grab' }}
        onMouseDown={(e) => { e.stopPropagation(); setDragging('central'); }}>
-      <circle cx={centralPos.x} cy={centralPos.y} r={55} fill="#1a1a2e"
+      <circle cx={centralPos.x} cy={centralPos.y} r={65} fill="#1a1a2e"
         stroke="#4ECDC4" strokeWidth={2.5}
         style={{ filter: 'drop-shadow(0 0 20px rgba(78,205,196,0.4))' }} />
       <text x={centralPos.x} y={centralPos.y - 8} textAnchor="middle" fill="#4ECDC4"
-        style={{ fontFamily: "'Space Mono', monospace", fontSize: 11, fontWeight: 700 }}>FXSCALE</text>
-      <text x={centralPos.x} y={centralPos.y + 10} textAnchor="middle" fill="#A78BFA"
-        style={{ fontFamily: "'Space Mono', monospace", fontSize: 10 }}>IA</text>
+        style={{ fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 700 }}>FXSCALE</text>
+      <text x={centralPos.x} y={centralPos.y + 12} textAnchor="middle" fill="#A78BFA"
+        style={{ fontFamily: "'Space Mono', monospace", fontSize: 12 }}>IA</text>
     </g>
   );
 
@@ -222,24 +246,24 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
 
     allLines.push(
       <path key={`line-c-${proj.id}`} d={curvedPath(centralPos.x, centralPos.y, projPos.x, projPos.y)}
-        fill="none" stroke={proj.color} strokeWidth={2} opacity={0.4}
+        fill="none" stroke={proj.color} strokeWidth={2} opacity={0.5}
         strokeDasharray="6 4" />
     );
 
     allNodes.push(
       <g key={`proj-${proj.id}`} style={{ cursor: 'grab' }}
          onMouseDown={(e) => { e.stopPropagation(); setDragging(proj.id); }}>
-        <circle cx={projPos.x} cy={projPos.y} r={42} fill="#1a1a2e"
-          stroke={proj.color} strokeWidth={2}
+        <rect x={projPos.x - 110} y={projPos.y - 32} width={220} height={65} rx={14}
+          fill="#1a1a2e" stroke={proj.color} strokeWidth={2}
           style={{ filter: `drop-shadow(0 0 15px ${proj.color}44)` }} />
-        <text x={projPos.x} y={projPos.y - 10} textAnchor="middle" fontSize={16}>
+        <text x={projPos.x} y={projPos.y - 6} textAnchor="middle" fontSize={20}>
           {proj.emoji}
         </text>
-        <text x={projPos.x} y={projPos.y + 10} textAnchor="middle" fill="#fff"
-          style={{ fontFamily: "'Outfit', sans-serif", fontSize: 10, fontWeight: 600 }}>
-          {proj.name.length > 12 ? proj.name.slice(0, 12) + '..' : proj.name}
+        <text x={projPos.x} y={projPos.y + 18} textAnchor="middle" fill="#fff"
+          style={{ fontFamily: "'Outfit', sans-serif", fontSize: 14, fontWeight: 600 }}>
+          {proj.name}
         </text>
-        <circle cx={projPos.x + 30} cy={projPos.y - 30} r={6}
+        <circle cx={projPos.x + 95} cy={projPos.y - 20} r={7}
           fill={PRIORITY_COLORS[proj.priority]} />
         <g style={{ cursor: 'pointer' }} onClick={(e) => {
           e.stopPropagation();
@@ -248,16 +272,16 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
           setEditPriority(proj.priority);
           setEditColor(proj.color);
         }}>
-          <circle cx={projPos.x - 30} cy={projPos.y - 30} r={8} fill="#333" stroke="#555" strokeWidth={1} />
-          <text x={projPos.x - 30} y={projPos.y - 26} textAnchor="middle" fill="#aaa" fontSize={9}>&#9998;</text>
+          <circle cx={projPos.x - 95} cy={projPos.y - 20} r={9} fill="#333" stroke="#555" strokeWidth={1} />
+          <text x={projPos.x - 95} y={projPos.y - 16} textAnchor="middle" fill="#aaa" fontSize={10}>&#9998;</text>
         </g>
         <g style={{ cursor: 'pointer' }} onClick={(e) => {
           e.stopPropagation();
           setAddTaskModal(proj.id);
           setEditText('');
         }}>
-          <circle cx={projPos.x + 30} cy={projPos.y + 30} r={8} fill="#333" stroke="#555" strokeWidth={1} />
-          <text x={projPos.x + 30} y={projPos.y + 34} textAnchor="middle" fill="#aaa" fontSize={12}>+</text>
+          <circle cx={projPos.x + 95} cy={projPos.y + 20} r={9} fill="#333" stroke="#555" strokeWidth={1} />
+          <text x={projPos.x + 95} y={projPos.y + 24} textAnchor="middle" fill="#aaa" fontSize={14}>+</text>
         </g>
       </g>
     );
@@ -269,7 +293,7 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
 
       allLines.push(
         <path key={`line-${taskKey}`} d={curvedPath(projPos.x, projPos.y, taskPos.x, taskPos.y)}
-          fill="none" stroke={proj.color} strokeWidth={1.2} opacity={0.25}
+          fill="none" stroke={proj.color} strokeWidth={2} opacity={0.5}
           strokeDasharray="4 3" />
       );
 
@@ -277,22 +301,22 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
       allNodes.push(
         <g key={`task-${taskKey}`} style={{ cursor: 'grab' }}
            onMouseDown={(e) => { e.stopPropagation(); setDragging(taskKey); }}>
-          <rect x={taskPos.x - 58} y={taskPos.y - 18} width={116} height={36} rx={10}
+          <rect x={taskPos.x - 110} y={taskPos.y - 30} width={220} height={60} rx={12}
             fill="#12121c" stroke={task.status === 'done' ? '#10B981' : proj.color}
-            strokeWidth={1.2} opacity={task.status === 'done' ? 0.5 : 0.9}
-            style={{ filter: task.status === 'inprogress' ? `drop-shadow(0 0 8px ${proj.color}33)` : 'none' }} />
-          <text x={taskPos.x} y={taskPos.y - 2} textAnchor="middle" fill={task.status === 'done' ? '#666' : '#ccc'}
+            strokeWidth={1.5} opacity={task.status === 'done' ? 0.5 : 0.9}
+            style={{ filter: task.status === 'inprogress' ? `drop-shadow(0 0 10px ${proj.color}44)` : 'none' }} />
+          <text x={taskPos.x} y={taskPos.y - 4} textAnchor="middle" fill={task.status === 'done' ? '#666' : '#ccc'}
             style={{
-              fontFamily: "'Outfit', sans-serif", fontSize: 9,
+              fontFamily: "'Outfit', sans-serif", fontSize: 13,
               textDecoration: task.status === 'done' ? 'line-through' : 'none',
             }}>
-            {task.text.length > 16 ? task.text.slice(0, 16) + '..' : task.text}
+            {task.text}
           </text>
           <g style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); onCycleStatus(proj.id, task.id); }}>
-            <circle cx={taskPos.x - 40} cy={taskPos.y + 11} r={5} fill={statusColor} />
+            <circle cx={taskPos.x - 90} cy={taskPos.y + 18} r={6} fill={statusColor} />
           </g>
-          <text x={taskPos.x - 30} y={taskPos.y + 14} fill={statusColor}
-            style={{ fontFamily: "'Space Mono', monospace", fontSize: 7 }}>
+          <text x={taskPos.x - 80} y={taskPos.y + 22} fill={statusColor}
+            style={{ fontFamily: "'Space Mono', monospace", fontSize: 10 }}>
             {STATUS_LABELS[task.status]}
           </text>
           <g style={{ cursor: 'pointer' }} onClick={(e) => {
@@ -300,11 +324,11 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
             setEditTaskModal({ projId: proj.id, task });
             setEditText(task.text);
           }}>
-            <text x={taskPos.x + 35} y={taskPos.y + 14} fill="#666" fontSize={9}
+            <text x={taskPos.x + 80} y={taskPos.y + 22} fill="#666" fontSize={11}
               style={{ cursor: 'pointer' }}>&#9998;</text>
           </g>
           <g style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); onDeleteTask(proj.id, task.id); }}>
-            <text x={taskPos.x + 48} y={taskPos.y + 14} fill="#666" fontSize={9}
+            <text x={taskPos.x + 95} y={taskPos.y + 22} fill="#666" fontSize={11}
               style={{ cursor: 'pointer' }}>&times;</text>
           </g>
         </g>
@@ -314,7 +338,7 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
 
   return (
     <div ref={containerRef} style={{
-      width: '100%', height: 'calc(100vh - 60px)', position: 'relative', overflow: 'hidden',
+      width: '100%', flex: 1, position: 'relative', overflow: 'hidden',
       cursor: isPanning ? 'grabbing' : 'default',
     }}
     onMouseDown={handleMouseDown}
@@ -514,7 +538,7 @@ function ListView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditTask
 
   return (
     <div style={{
-      width: '100%', height: 'calc(100vh - 60px)', overflowY: 'auto',
+      width: '100%', flex: 1, overflowY: 'auto',
       padding: '24px 32px',
     }}>
       <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -884,66 +908,99 @@ export default function App() {
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <div style={{
-        height: 60, display: 'flex', alignItems: 'center', padding: '0 24px',
-        borderBottom: '1px solid #1a1a2e', gap: 16, flexShrink: 0,
+        borderBottom: '1px solid #1a1a2e', flexShrink: 0,
         background: 'linear-gradient(180deg, #0d0d18, #0A0A0F)',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 16 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: 8,
-            background: 'linear-gradient(135deg, #4ECDC4, #A78BFA)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: "'Space Mono', monospace", fontWeight: 700, fontSize: 14, color: '#000',
-          }}>FX</div>
-          <span style={{
-            fontFamily: "'Space Mono', monospace", fontWeight: 700, fontSize: 16, color: '#fff',
-          }}>FXSCALE</span>
-          <span style={{
-            fontFamily: "'Space Mono', monospace", fontSize: 12, color: '#A78BFA',
-          }}>Mindmap</span>
-        </div>
-
         <div style={{
-          display: 'flex', background: '#1a1a2e', borderRadius: 8, padding: 3,
+          display: 'flex', alignItems: 'center', padding: '12px 24px', gap: 16,
         }}>
-          <button onClick={() => setView('mindmap')} style={{
-            padding: '6px 16px', borderRadius: 6, border: 'none', cursor: 'pointer',
-            fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 600,
-            background: view === 'mindmap' ? 'linear-gradient(135deg, #4ECDC4, #A78BFA)' : 'transparent',
-            color: view === 'mindmap' ? '#000' : '#666',
-            transition: 'all 0.2s',
-          }}>Mindmap</button>
-          <button onClick={() => setView('list')} style={{
-            padding: '6px 16px', borderRadius: 6, border: 'none', cursor: 'pointer',
-            fontFamily: "'Space Mono', monospace", fontSize: 12, fontWeight: 600,
-            background: view === 'list' ? 'linear-gradient(135deg, #4ECDC4, #A78BFA)' : 'transparent',
-            color: view === 'list' ? '#000' : '#666',
-            transition: 'all 0.2s',
-          }}>Liste</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 12 }}>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'linear-gradient(135deg, #4ECDC4, #A78BFA)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: "'Space Mono', monospace", fontWeight: 700, fontSize: 14, color: '#000',
+            }}>FX</div>
+            <span style={{
+              fontFamily: "'Space Mono', monospace", fontWeight: 700, fontSize: 18, color: '#fff',
+            }}>FXSCALE</span>
+            <span style={{
+              fontFamily: "'Space Mono', monospace", fontSize: 13, color: '#A78BFA',
+            }}>Mindmap</span>
+          </div>
+
+          <div style={{
+            display: 'flex', background: '#1a1a2e', borderRadius: 10, padding: 4,
+          }}>
+            <button onClick={() => setView('mindmap')} style={{
+              padding: '8px 22px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 600,
+              background: view === 'mindmap' ? 'linear-gradient(135deg, #4ECDC4, #A78BFA)' : 'transparent',
+              color: view === 'mindmap' ? '#000' : '#666',
+              transition: 'all 0.2s',
+            }}>{'🧠'} Mindmap</button>
+            <button onClick={() => setView('list')} style={{
+              padding: '8px 22px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 600,
+              background: view === 'list' ? 'linear-gradient(135deg, #4ECDC4, #A78BFA)' : 'transparent',
+              color: view === 'list' ? '#000' : '#666',
+              transition: 'all 0.2s',
+            }}>{'📋'} Liste</button>
+          </div>
+
+          <div style={{ flex: 1 }} />
+
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{
+              background: 'rgba(78, 205, 196, 0.1)', border: '1px solid rgba(78, 205, 196, 0.3)',
+              borderRadius: 12, padding: '6px 16px', textAlign: 'center', minWidth: 80,
+            }}>
+              <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 24, fontWeight: 700, color: '#4ECDC4', lineHeight: 1.2 }}>
+                {projects.length}
+              </div>
+              <div style={{ fontSize: 12, color: '#4ECDC4', fontFamily: "'Outfit', sans-serif", opacity: 0.8 }}>Projets</div>
+            </div>
+            <div style={{
+              background: 'rgba(167, 139, 250, 0.1)', border: '1px solid rgba(167, 139, 250, 0.3)',
+              borderRadius: 12, padding: '6px 16px', textAlign: 'center', minWidth: 80,
+            }}>
+              <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 24, fontWeight: 700, color: '#A78BFA', lineHeight: 1.2 }}>
+                {totalTasks}
+              </div>
+              <div style={{ fontSize: 12, color: '#A78BFA', fontFamily: "'Outfit', sans-serif", opacity: 0.8 }}>Tâches</div>
+            </div>
+            <div style={{
+              background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)',
+              borderRadius: 12, padding: '6px 16px', textAlign: 'center', minWidth: 80,
+            }}>
+              <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 24, fontWeight: 700, color: '#F59E0B', lineHeight: 1.2 }}>
+                {inProgressTasks}
+              </div>
+              <div style={{ fontSize: 12, color: '#F59E0B', fontFamily: "'Outfit', sans-serif", opacity: 0.8 }}>En cours</div>
+            </div>
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: 12, padding: '6px 16px', textAlign: 'center', minWidth: 80,
+            }}>
+              <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 24, fontWeight: 700, color: '#10B981', lineHeight: 1.2 }}>
+                {doneTasks}/{totalTasks}
+              </div>
+              <div style={{ fontSize: 12, color: '#10B981', fontFamily: "'Outfit', sans-serif", opacity: 0.8 }}>Complétés</div>
+            </div>
+          </div>
         </div>
 
-        <div style={{ flex: 1 }} />
-
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700, color: '#4ECDC4' }}>
-              {projects.length}
-            </div>
-            <div style={{ fontSize: 9, color: '#555', fontFamily: "'Outfit', sans-serif" }}>Projets</div>
-          </div>
-          <div style={{ width: 1, height: 24, background: '#1a1a2e' }} />
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700, color: '#F59E0B' }}>
-              {inProgressTasks}
-            </div>
-            <div style={{ fontSize: 9, color: '#555', fontFamily: "'Outfit', sans-serif" }}>En cours</div>
-          </div>
-          <div style={{ width: 1, height: 24, background: '#1a1a2e' }} />
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 16, fontWeight: 700, color: '#10B981' }}>
-              {doneTasks}/{totalTasks}
-            </div>
-            <div style={{ fontSize: 9, color: '#555', fontFamily: "'Outfit', sans-serif" }}>Compl\u00e9t\u00e9s</div>
+        <div style={{ padding: '0 24px 10px' }}>
+          <div style={{
+            width: '100%', height: 6, borderRadius: 3, background: '#1a1a2e', overflow: 'hidden',
+          }}>
+            <div style={{
+              height: '100%', borderRadius: 3,
+              background: 'linear-gradient(90deg, #4ECDC4, #A78BFA)',
+              width: `${totalTasks > 0 ? Math.round((doneTasks / totalTasks) * 100) : 0}%`,
+              transition: 'width 0.3s',
+              boxShadow: '0 0 10px rgba(78, 205, 196, 0.4)',
+            }} />
           </div>
         </div>
       </div>
