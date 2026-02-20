@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { supabase } from './lib/supabase';
 
 // ─── Initial Data ───────────────────────────────────────────────────────────
 const INITIAL_PROJECTS = [
@@ -62,7 +63,9 @@ const STATUS_COLORS = { todo: '#6B7280', inprogress: '#F59E0B', done: '#10B981' 
 const PRIORITY_LABELS = { urgent: 'Urgent', important: 'Important', normal: 'Normal' };
 const PRIORITY_COLORS = { urgent: '#FF6B6B', important: '#FFB347', normal: '#10B981' };
 
-function loadData() {
+// ─── Supabase Data Layer (with localStorage fallback) ───────────────────────
+
+function loadLocalData() {
   try {
     const saved = localStorage.getItem('fxscale-mindmap-data');
     if (saved) return JSON.parse(saved);
@@ -70,8 +73,38 @@ function loadData() {
   return INITIAL_PROJECTS;
 }
 
-function saveData(projects) {
+function saveLocalData(projects) {
   localStorage.setItem('fxscale-mindmap-data', JSON.stringify(projects));
+}
+
+async function loadFromSupabase() {
+  const { data, error } = await supabase
+    .from('app_state')
+    .select('state')
+    .eq('id', 'main')
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      // Row doesn't exist yet — seed from localStorage
+      const local = loadLocalData();
+      await saveToSupabase(local);
+      return local;
+    }
+    throw error;
+  }
+  return data.state;
+}
+
+async function saveToSupabase(projects) {
+  const { error } = await supabase
+    .from('app_state')
+    .upsert({
+      id: 'main',
+      state: projects,
+      updated_at: new Date().toISOString(),
+    });
+  if (error) throw error;
 }
 
 let idCounter = Date.now();
@@ -837,9 +870,58 @@ function ListView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditTask
 // ─── Main App ───────────────────────────────────────────────────────────────
 export default function App() {
   const [view, setView] = useState('mindmap');
-  const [projects, setProjects] = useState(loadData);
+  const [projects, setProjects] = useState(loadLocalData);
+  const [loading, setLoading] = useState(true);
+  const isRemoteUpdate = useRef(false);
+  const saveTimeout = useRef(null);
 
-  useEffect(() => { saveData(projects); }, [projects]);
+  // Load data from Supabase on mount
+  useEffect(() => {
+    loadFromSupabase()
+      .then(data => {
+        setProjects(data);
+        saveLocalData(data);
+      })
+      .catch(() => {
+        // Supabase failed — use localStorage (already loaded)
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  // Subscribe to Realtime changes for live sync
+  useEffect(() => {
+    const channel = supabase
+      .channel('app_state_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'app_state' }, (payload) => {
+        if (payload.new && payload.new.state) {
+          isRemoteUpdate.current = true;
+          setProjects(payload.new.state);
+          saveLocalData(payload.new.state);
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  // Save to Supabase (debounced) + localStorage on every change
+  useEffect(() => {
+    saveLocalData(projects);
+
+    if (isRemoteUpdate.current) {
+      isRemoteUpdate.current = false;
+      return;
+    }
+
+    if (loading) return;
+
+    clearTimeout(saveTimeout.current);
+    saveTimeout.current = setTimeout(() => {
+      saveToSupabase(projects).catch(() => {
+        // Supabase save failed — data is still in localStorage
+      });
+    }, 500);
+  }, [projects, loading]);
 
   const cycleStatus = useCallback((projId, taskId) => {
     setProjects(prev => prev.map(p => p.id === projId ? {
@@ -905,6 +987,27 @@ export default function App() {
   const totalTasks = projects.reduce((a, p) => a + p.tasks.length, 0);
   const doneTasks = projects.reduce((a, p) => a + p.tasks.filter(t => t.status === 'done').length, 0);
   const inProgressTasks = projects.reduce((a, p) => a + p.tasks.filter(t => t.status === 'inprogress').length, 0);
+
+  if (loading) {
+    return (
+      <div style={{
+        width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: '#0A0A0F', flexDirection: 'column', gap: 20,
+      }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: 12,
+          background: 'linear-gradient(135deg, #4ECDC4, #A78BFA)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: "'Space Mono', monospace", fontWeight: 700, fontSize: 18, color: '#000',
+          animation: 'pulse 1.5s ease-in-out infinite',
+        }}>FX</div>
+        <span style={{ fontFamily: "'Space Mono', monospace", fontSize: 14, color: '#666' }}>
+          Chargement...
+        </span>
+        <style>{`@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.95); } }`}</style>
+      </div>
+    );
+  }
 
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column' }}>
