@@ -265,7 +265,7 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
         </text>
         <circle cx={projPos.x + 95} cy={projPos.y - 20} r={7}
           fill={PRIORITY_COLORS[proj.priority]} />
-        <g style={{ cursor: 'pointer' }} onClick={(e) => {
+        <g style={{ cursor: 'pointer' }} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => {
           e.stopPropagation();
           setEditProjectModal(proj);
           setEditText(proj.name);
@@ -275,7 +275,7 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
           <circle cx={projPos.x - 95} cy={projPos.y - 20} r={9} fill="#333" stroke="#555" strokeWidth={1} />
           <text x={projPos.x - 95} y={projPos.y - 16} textAnchor="middle" fill="#aaa" fontSize={10}>&#9998;</text>
         </g>
-        <g style={{ cursor: 'pointer' }} onClick={(e) => {
+        <g style={{ cursor: 'pointer' }} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => {
           e.stopPropagation();
           setAddTaskModal(proj.id);
           setEditText('');
@@ -312,14 +312,14 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
             }}>
             {task.text}
           </text>
-          <g style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); onCycleStatus(proj.id, task.id); }}>
+          <g style={{ cursor: 'pointer' }} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onCycleStatus(proj.id, task.id); }}>
             <circle cx={taskPos.x - 90} cy={taskPos.y + 18} r={6} fill={statusColor} />
           </g>
           <text x={taskPos.x - 80} y={taskPos.y + 22} fill={statusColor}
             style={{ fontFamily: "'Space Mono', monospace", fontSize: 10 }}>
             {STATUS_LABELS[task.status]}
           </text>
-          <g style={{ cursor: 'pointer' }} onClick={(e) => {
+          <g style={{ cursor: 'pointer' }} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => {
             e.stopPropagation();
             setEditTaskModal({ projId: proj.id, task });
             setEditText(task.text);
@@ -327,7 +327,7 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
             <text x={taskPos.x + 80} y={taskPos.y + 22} fill="#666" fontSize={11}
               style={{ cursor: 'pointer' }}>&#9998;</text>
           </g>
-          <g style={{ cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); onDeleteTask(proj.id, task.id); }}>
+          <g style={{ cursor: 'pointer' }} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onDeleteTask(proj.id, task.id); }}>
             <text x={taskPos.x + 95} y={taskPos.y + 22} fill="#666" fontSize={11}
               style={{ cursor: 'pointer' }}>&times;</text>
           </g>
