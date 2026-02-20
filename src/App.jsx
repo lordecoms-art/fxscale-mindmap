@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from './lib/supabase';
+import Login from './Login';
 
 // ─── Initial Data ───────────────────────────────────────────────────────────
 const INITIAL_PROJECTS = [
@@ -872,11 +873,33 @@ export default function App() {
   const [view, setView] = useState('mindmap');
   const [projects, setProjects] = useState(loadLocalData);
   const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const isRemoteUpdate = useRef(false);
   const saveTimeout = useRef(null);
 
-  // Load data from Supabase on mount
+  // Check auth state on mount + listen for changes
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s);
+      setAuthChecked(true);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(s);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Load data from Supabase once authenticated
+  useEffect(() => {
+    if (!session) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
     loadFromSupabase()
       .then(data => {
         setProjects(data);
@@ -886,7 +909,7 @@ export default function App() {
         // Supabase failed — use localStorage (already loaded)
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [session]);
 
   // Subscribe to Realtime changes for live sync
   useEffect(() => {
@@ -987,6 +1010,29 @@ export default function App() {
   const totalTasks = projects.reduce((a, p) => a + p.tasks.length, 0);
   const doneTasks = projects.reduce((a, p) => a + p.tasks.filter(t => t.status === 'done').length, 0);
   const inProgressTasks = projects.reduce((a, p) => a + p.tasks.filter(t => t.status === 'inprogress').length, 0);
+
+  // Auth check: show login if not authenticated
+  if (!authChecked || (!session && loading)) {
+    return (
+      <div style={{
+        width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: '#0A0A0F', flexDirection: 'column', gap: 20,
+      }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: 12,
+          background: 'linear-gradient(135deg, #4ECDC4, #A78BFA)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontFamily: "'Space Mono', monospace", fontWeight: 700, fontSize: 18, color: '#000',
+          animation: 'pulse 1.5s ease-in-out infinite',
+        }}>FX</div>
+        <style>{`@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(0.95); } }`}</style>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return <Login />;
+  }
 
   if (loading) {
     return (
@@ -1091,6 +1137,12 @@ export default function App() {
               </div>
               <div style={{ fontSize: 12, color: '#10B981', fontFamily: "'Outfit', sans-serif", opacity: 0.8 }}>Complétés</div>
             </div>
+            <button onClick={() => supabase.auth.signOut()} style={{
+              background: 'none', border: '1px solid #333', borderRadius: 8,
+              color: '#666', padding: '6px 14px', cursor: 'pointer',
+              fontFamily: "'Space Mono', monospace", fontSize: 11,
+              transition: 'all 0.2s',
+            }}>Deconnexion</button>
           </div>
         </div>
 
