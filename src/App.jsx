@@ -313,12 +313,13 @@ function MindmapView({ projects, onCycleStatus, onAddTask, onDeleteTask, onEditT
             {task.text}
           </text>
           <g style={{ cursor: 'pointer' }} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); onCycleStatus(proj.id, task.id); }}>
+            <rect x={taskPos.x - 100} y={taskPos.y + 6} width={80} height={22} rx={4} fill="transparent" />
             <circle cx={taskPos.x - 90} cy={taskPos.y + 18} r={6} fill={statusColor} />
+            <text x={taskPos.x - 80} y={taskPos.y + 22} fill={statusColor}
+              style={{ fontFamily: "'Space Mono', monospace", fontSize: 10 }}>
+              {STATUS_LABELS[task.status]}
+            </text>
           </g>
-          <text x={taskPos.x - 80} y={taskPos.y + 22} fill={statusColor}
-            style={{ fontFamily: "'Space Mono', monospace", fontSize: 10 }}>
-            {STATUS_LABELS[task.status]}
-          </text>
           <g style={{ cursor: 'pointer' }} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => {
             e.stopPropagation();
             setEditTaskModal({ projId: proj.id, task });
