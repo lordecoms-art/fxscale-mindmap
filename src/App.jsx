@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import Login from './Login';
+import PlanningView from './PlanningView';
 
 // ─── Initial Data ───────────────────────────────────────────────────────────
 const INITIAL_PROJECTS = [
@@ -878,6 +879,15 @@ export default function App() {
   const isRemoteUpdate = useRef(false);
   const saveTimeout = useRef(null);
 
+  // Planning data (separate from projects to avoid breaking existing Supabase state)
+  const [planningData, setPlanningData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('fxscale-mindmap-planning');
+      if (saved) return JSON.parse(saved);
+    } catch (e) { /* ignore */ }
+    return [];
+  });
+
   // Check auth state on mount + listen for changes
   useEffect(() => {
     supabase.auth.getSession()
@@ -950,6 +960,11 @@ export default function App() {
     }, 500);
   }, [projects, loading]);
 
+  // Save planning data to localStorage
+  useEffect(() => {
+    localStorage.setItem('fxscale-mindmap-planning', JSON.stringify(planningData));
+  }, [planningData]);
+
   const cycleStatus = useCallback((projId, taskId) => {
     setProjects(prev => prev.map(p => p.id === projId ? {
       ...p,
@@ -961,10 +976,12 @@ export default function App() {
   }, []);
 
   const addTask = useCallback((projId, text) => {
+    const taskId = genId();
     setProjects(prev => prev.map(p => p.id === projId ? {
       ...p,
-      tasks: [...p.tasks, { id: genId(), text, status: 'todo' }],
+      tasks: [...p.tasks, { id: taskId, text, status: 'todo' }],
     } : p));
+    return taskId;
   }, []);
 
   const deleteTask = useCallback((projId, taskId) => {
@@ -1093,6 +1110,13 @@ export default function App() {
               color: view === 'mindmap' ? '#000' : '#666',
               transition: 'all 0.2s',
             }}>{'🧠'} Mindmap</button>
+            <button onClick={() => setView('planning')} style={{
+              padding: '8px 22px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 600,
+              background: view === 'planning' ? 'linear-gradient(135deg, #4ECDC4, #A78BFA)' : 'transparent',
+              color: view === 'planning' ? '#000' : '#666',
+              transition: 'all 0.2s',
+            }}>{'📅'} Planning</button>
             <button onClick={() => setView('list')} style={{
               padding: '8px 22px', borderRadius: 8, border: 'none', cursor: 'pointer',
               fontFamily: "'Space Mono', monospace", fontSize: 14, fontWeight: 600,
@@ -1165,7 +1189,9 @@ export default function App() {
         </div>
       </div>
 
-      {view === 'mindmap' ? <MindmapView projects={projects} {...handlers} /> : <ListView projects={projects} {...handlers} />}
+      {view === 'mindmap' && <MindmapView projects={projects} {...handlers} />}
+      {view === 'planning' && <PlanningView projects={projects} planningData={planningData} setPlanningData={setPlanningData} onCycleStatus={cycleStatus} onAddTask={addTask} />}
+      {view === 'list' && <ListView projects={projects} {...handlers} />}
     </div>
   );
 }
