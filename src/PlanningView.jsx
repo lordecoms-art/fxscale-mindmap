@@ -160,7 +160,7 @@ function TaskCard({ assignment, taskInfo, isVirtual, slotHeight, onCycleStatus, 
       onDragStart={e => {
         if (isVirtual) { e.preventDefault(); return; }
         e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'move', assignmentId: assignment.id }));
-        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.effectAllowed = 'all';
       }}
       style={{
         background: isDone ? 'rgba(16, 185, 129, 0.1)' : `${project.color}15`,
@@ -401,7 +401,9 @@ export default function PlanningView({ projects, planningData, setPlanningData, 
   // Drag & drop handlers
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+  }, []);
+  const handleDragEnter = useCallback((e) => {
+    e.preventDefault();
   }, []);
 
   const handleDrop = useCallback((e, dayStr, slotId) => {
@@ -717,7 +719,7 @@ export default function PlanningView({ projects, planningData, setPlanningData, 
                     e.dataTransfer.setData('text/plain', JSON.stringify({
                       type: 'assign', taskId: task.id, projectId: task.project.id,
                     }));
-                    e.dataTransfer.effectAllowed = 'copy';
+                    e.dataTransfer.effectAllowed = 'all';
                   }}
                   style={{
                     padding: '8px 10px', marginBottom: 4, borderRadius: 8,
@@ -823,7 +825,22 @@ export default function PlanningView({ projects, planningData, setPlanningData, 
                       <div
                         key={slot.id}
                         onDragOver={handleDragOver}
-                        onDrop={e => handleDrop(e, dayStr, slot.id)}
+                        onDragEnter={e => {
+                          handleDragEnter(e);
+                          e.currentTarget.style.background = 'rgba(78, 205, 196, 0.12)';
+                          e.currentTarget.style.outline = '1px dashed rgba(78, 205, 196, 0.4)';
+                        }}
+                        onDragLeave={e => {
+                          if (!e.currentTarget.contains(e.relatedTarget)) {
+                            e.currentTarget.style.background = isCurrentSlot ? 'rgba(78, 205, 196, 0.04)' : 'rgba(255,255,255,0.01)';
+                            e.currentTarget.style.outline = 'none';
+                          }
+                        }}
+                        onDrop={e => {
+                          handleDrop(e, dayStr, slot.id);
+                          e.currentTarget.style.background = isCurrentSlot ? 'rgba(78, 205, 196, 0.04)' : 'rgba(255,255,255,0.01)';
+                          e.currentTarget.style.outline = 'none';
+                        }}
                         onClick={() => isEmpty && handleSlotClick(dayStr, slot.id)}
                         style={{
                           height: SLOT_HEIGHT, padding: 3,
@@ -846,6 +863,7 @@ export default function PlanningView({ projects, planningData, setPlanningData, 
                           <div style={{
                             width: '100%', height: '100%', display: 'flex',
                             alignItems: 'center', justifyContent: 'center',
+                            pointerEvents: 'none',
                           }}>
                             <span style={{ fontSize: 16, color: '#1a1a2e', transition: 'color 0.15s' }}>+</span>
                           </div>
