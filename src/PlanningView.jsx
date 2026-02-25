@@ -306,7 +306,7 @@ export default function PlanningView({ projects, planningData, setPlanningData, 
     const tasks = [];
     projects.forEach(proj => {
       proj.tasks.forEach(task => {
-        if (!assignedTaskIds.has(task.id)) {
+        if (!assignedTaskIds.has(task.id) && task.status !== 'done') {
           tasks.push({ ...task, project: proj });
         }
       });
